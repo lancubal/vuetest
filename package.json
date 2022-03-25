@@ -1,0 +1,38 @@
+{
+  "name": "visor_ee_gedo",
+  "version": "0.0.0",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite build && vite preview --port 3001",
+    "test:e2e": "start-server-and-test dev http-get://localhost:3000 cypress",
+    "cypress": "cypress run",
+    "test:unit": "vitest run"
+  },
+  "dependencies": {
+    "axios": "^0.24.0",
+    "date-fns": "^2.25.0",
+    "jwt-decode": "^3.1.2",
+    "pdfobject": "^2.2.6",
+    "primeflex": "^2.0.0",
+    "primeicons": "^5.0.0",
+    "primevue": "^3.8.2",
+    "sass": "^1.38.2",
+    "vue": "^3.2.22",
+    "vue-router": "^4.0.0-0",
+    "vuex": "^4.0.2"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^1.9.4",
+    "@vue/compiler-sfc": "^3.1.4",
+    "@vue/test-utils": "^2.0.0-rc.17",
+    "cypress": "^9.5.0",
+    "happy-dom": "latest",
+    "rollup-plugin-terser": "^7.0.2",
+    "start-server-and-test": "^1.14.0",
+    "vite": "^2.6.14",
+    "vite-plugin-compression": "^0.3.5",
+    "vite-plugin-pwa": "^0.11.3",
+    "vitest": "0.5.4"
+  }
+}

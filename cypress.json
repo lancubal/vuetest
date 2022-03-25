@@ -1,0 +1,8 @@
+{
+  "baseUrl": "http://localhost:3000",
+  "integrationFolder": "test/cypress",
+  "pluginsFile": false,
+  "supportFile": false,
+  "video": false,
+  "projectId": "uzjmcx"
+}

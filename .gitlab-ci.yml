@@ -1,0 +1,164 @@
+stages:
+- install
+- build
+- deploy
+- package
+- release
+
+
+Instalar Dependencias:
+  image: node:14.17.3
+  stage: install
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH || $CI_COMMIT_TAG || $BUILD_HML || $BUILD_PRD
+  script:
+  - npm install
+  artifacts:
+    expire_in: 1 week
+    paths:
+    - node_modules 
+  cache:
+    key: $CI_COMMIT_REF_SLUG-$CI_PROJECT_DIR
+    paths:
+    - node_modules
+
+Construir el sitio dev:
+  image: node:14.17.3
+  stage: build
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $BUILD_HML == null && $BUILD_PRD == null
+  cache: 
+    key: $CI_COMMIT_REF_SLUG-$CI_PROJECT_DIR
+    paths:
+      - node_modules/
+    policy: pull
+  script:
+    - npm run build
+  artifacts:
+    expire_in: 1 week
+    paths:
+      - dist/
+
+Construir el sitio tst:
+  image: node:14.17.3
+  stage: build
+  rules:
+    - if: $CI_COMMIT_TAG && $BUILD_HML == null && $BUILD_PRD == null
+  cache: 
+    key: $CI_COMMIT_REF_SLUG-$CI_PROJECT_DIR
+    paths:
+      - node_modules/
+    policy: pull
+  script:
+    - echo "VITE_APP_SERVICE_URL=$VITE_APP_SERVICE_URL_TST" >> .env.production
+    - echo "VITE_APP_SISTEMA_ORIGEN=$VITE_APP_SISTEMA_ORIGEN_TST" >> .env.production
+    - echo "VITE_APP_AMBIENTE=$VITE_APP_AMBIENTE_TST" >> .env.production
+    - npm run build
+  artifacts:
+    expire_in: 1 week
+    paths:
+      - dist/
+
+Construir el sitio HML:
+  image: node:14.17.3
+  stage: build
+  rules:
+    - if: $BUILD_HML
+  cache: 
+    key: $CI_COMMIT_REF_SLUG-$CI_PROJECT_DIR
+    paths:
+      - node_modules/
+    policy: pull
+  script:
+    - echo "VITE_APP_SERVICE_URL=$VITE_APP_SERVICE_URL_HML" >> .env.production
+    - echo "VITE_APP_SISTEMA_ORIGEN=$VITE_APP_SISTEMA_ORIGEN_HML" >> .env.production
+    - echo "VITE_APP_AMBIENTE=$VITE_APP_AMBIENTE_HML" >> .env.production
+    - npm run build
+  artifacts:
+    expire_in: 1 week
+    paths:
+      - dist/
+
+Construir el sitio PRD:
+  image: node:14.17.3
+  stage: build
+  rules:
+    - if: $BUILD_PRD
+  cache: 
+    key: $CI_COMMIT_REF_SLUG-$CI_PROJECT_DIR
+    paths:
+      - node_modules/
+    policy: pull
+  script:
+    - echo "VITE_APP_SERVICE_URL=$VITE_APP_SERVICE_URL_PRD" >> .env.production
+    - echo "VITE_APP_SISTEMA_ORIGEN=$VITE_APP_SISTEMA_ORIGEN_PRD" >> .env.production
+    - echo "VITE_APP_AMBIENTE=$VITE_APP_AMBIENTE_PRD" >> .env.production
+    - npm run build
+  artifacts:
+    expire_in: 1 week
+    paths:
+      - dist/
+
+Despliegue-dev:
+  image: alpine
+  stage: deploy
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $BUILD_HML == null && $BUILD_PRD == null
+  environment:
+    name: develop
+    url: http://$IP_DEV_ENV
+  script:
+    - apk add --no-cache rsync openssh
+    - mkdir -p ~/.ssh
+    - echo "$SSH_PRIVATE_KEY_DEV" >> ~/.ssh/id_dsa
+    - chmod 600 ~/.ssh/id_dsa
+    - echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config
+    - ssh gitlab@$IP_DEV_ENV "cd /opt/visor-ee && rm -r -f * && exit"
+    - scp -r dist/* gitlab@$IP_DEV_ENV:/opt/visor-ee
+
+Despliegue-tst:
+  image: alpine
+  stage: deploy
+  rules:
+    - if: $CI_COMMIT_TAG && $BUILD_HML == null && $BUILD_PRD == null
+      when: manual
+  environment:
+    name: testing
+    url: http://$IP_TST_ENV
+  script:
+    - apk add --no-cache rsync openssh
+    - mkdir -p ~/.ssh
+    - echo "$SSH_PRIVATE_KEY_TST" >> ~/.ssh/id_dsa
+    - chmod 600 ~/.ssh/id_dsa
+    - echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config
+    - ssh gitlab@$IP_TST_ENV "cd /opt/visor-ee && rm -r -f * && exit"
+    - scp -r dist/* gitlab@$IP_TST_ENV:/opt/visor-ee
+    - echo "VITE_APP_SERVICE_URL=$VITE_APP_SERVICE_URL_TST" >> .env
+    - echo "VITE_APP_SISTEMA_ORIGEN=$VITE_APP_SISTEMA_ORIGEN_TST" >> .env
+    - echo "VITE_APP_AMBIENTE=$VITE_APP_AMBIENTE_TST" >> .env
+    - scp .env gitlab@$IP_TST_ENV:/opt/visor-ee/
+
+docker-build:
+ image: docker:stable
+ stage: package
+ rules:
+  - if: $CI_COMMIT_TAG && $BUILD_HML == null && $BUILD_PRD == null
+ before_script:
+  - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" $CI_REGISTRY
+ script:
+  - IMAGE_NAME="$CI_REGISTRY_IMAGE:$CI_COMMIT_REF_NAME"
+  - docker build --pull -t "$IMAGE_NAME" -f Dockerfile .
+  - docker push "$IMAGE_NAME"
+
+Versionado:
+  stage: release
+  image: registry.gitlab.com/gitlab-org/release-cli:latest
+  rules:
+    - if: $CI_COMMIT_TAG && $BUILD_HML == null && $BUILD_PRD == null                # Este job corre si un tag fue creado manualmente
+  script:
+    - echo 'Ejecutando versionado'
+  release:
+    name: '$CI_COMMIT_TAG'
+    tag_name: '$CI_COMMIT_TAG'
+    ref: '$CI_COMMIT_TAG'
+    description: './CHANGELOG.md'
